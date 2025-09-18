@@ -1,9 +1,8 @@
 name: Check derSchutze Stock
 
 on:
-  schedule:
-    - cron: '*/5 * * * *'  # every 5 minutes (UTC)
-  workflow_dispatch:  # allows manual triggering
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+  repository_dispatch: # allows external trigger from cron-job.org
 
 jobs:
   check-stock:
