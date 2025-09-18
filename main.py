@@ -23,7 +23,7 @@ def is_in_stock():
 
 def send_discord_notification():
 	requests.post(WEBHOOK_URL, json={
-		"content": f"🔥 Blossom V2 Selvedge Denim size 28 can be added to cart! Check here: https://derschutze.com/collections/pants/products/blossom-v2-selvedge-denim?variant=51377786945800"
+		"content": f"https://derschutze.com/cart/{VARIANT_ID}:1"
 	})
 
 if is_in_stock():
