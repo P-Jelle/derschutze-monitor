@@ -2,8 +2,7 @@ import os
 import requests
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-# VARIANT_ID = 51377786945800  # size 28
-VARIANT_ID = 51377787044104
+VARIANT_ID = 51377786945800  # size 28
 
 def is_in_stock():
 	url = f"https://derschutze.com/cart/{VARIANT_ID}:1"
