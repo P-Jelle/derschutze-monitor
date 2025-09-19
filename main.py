@@ -9,91 +9,113 @@ STORE_BASE = "https://derschutze.com"
 ATC_URL = f"{STORE_BASE}/cart/{VARIANT_ID}:1"
 
 session = requests.Session()
-session.headers.update({
-    "User-Agent": "Mozilla/5.0 (compatible; stock-checker/1.0)"
-})
+session.headers.update({"User-Agent": "Mozilla/5.0 (compatible; stock-checker/1.0)"})
+
 
 def is_in_stock():
     r = session.get(ATC_URL, allow_redirects=True, timeout=20)
-    if r.status_code == 200:
-        if "sold out" in r.text.lower():
-            print(f"Variant {VARIANT_ID} is sold out")
-            return False
-        print(f"Variant {VARIANT_ID} can be added to cart")
+    if r.status_code == 200 and "sold out" not in r.text.lower():
         return True
-    print(f"ATC check failed: {r.status_code}")
     return False
 
-def get_title_from_cart():
+
+def get_from_cart():
+    """Return (title, image_url) if present in cart.js for our variant."""
     try:
         r = session.get(f"{STORE_BASE}/cart.js", timeout=20)
         r.raise_for_status()
-        data = r.json()
-        for item in data.get("items", []):
-            # In cart.js, the variant id is "id"
+        for item in r.json().get("items", []):
             if str(item.get("id")) == str(VARIANT_ID):
+                # Title
                 product = (item.get("product_title") or "").strip()
                 size = (item.get("variant_title") or "").strip()
-                if product and size:
-                    return f"{product} {size}"
-                # Fallback to item["title"] which is often "Product — Size"
-                if item.get("title"):
-                    return item["title"].strip()
+                title = (f"{product} {size}".strip()) or (item.get("title") or "ATC")
+
+                # Image (Shopify usually provides absolute URL in item["image"])
+                image_url = item.get("image") or None
+                # Some themes expose featured_image as dict with "url"
+                if not image_url:
+                    fi = item.get("featured_image") or {}
+                    image_url = fi.get("url")
+
+                return title, image_url
     except Exception as e:
         print("cart.js read failed:", e)
-    return None
+    return None, None
 
-def get_title_from_shopify_json():
-    """Fallback path if cart.js didn't have the item."""
+
+def get_from_shopify_json():
+    """
+    Fallback using Shopify JSON endpoints.
+    Returns (title, image_url).
+    """
+    title, image_url = None, None
     try:
-        r_var = session.get(f"{STORE_BASE}/variants/{VARIANT_ID}.json", timeout=20)
-        if r_var.status_code != 200:
-            return None
-        variant = r_var.json().get("variant", {})
-        product_id = variant.get("product_id")
+        rv = session.get(f"{STORE_BASE}/variants/{VARIANT_ID}.json", timeout=20)
+        if rv.status_code != 200:
+            return None, None
+        variant = rv.json().get("variant", {})
         var_title = (variant.get("title") or "").strip()
-        if not product_id:
-            return var_title or None
+        product_id = variant.get("product_id")
+        variant_image_id = variant.get("image_id")
 
-        r_prod = session.get(f"{STORE_BASE}/products/{product_id}.json", timeout=20)
-        if r_prod.status_code != 200:
-            return var_title or None
-        product_title = (r_prod.json().get("product", {}).get("title") or "").strip()
-        if product_title and var_title:
-            return f'{product_title} {var_title}'
-        return product_title or var_title or None
+        if product_id:
+            rp = session.get(f"{STORE_BASE}/products/{product_id}.json", timeout=20)
+            if rp.status_code == 200:
+                product = rp.json().get("product", {}) or {}
+                product_title = (product.get("title") or "").strip()
+                if product_title and var_title:
+                    title = f"{product_title} {var_title}"
+                else:
+                    title = product_title or var_title or "ATC"
+
+                # Find best image:
+                # 1) Variant image match
+                images = product.get("images", []) or []
+                if variant_image_id:
+                    for img in images:
+                        if str(img.get("id")) == str(variant_image_id) and img.get("src"):
+                            image_url = "https:" + img["src"] if img["src"].startswith("//") else img["src"]
+                            break
+                # 2) First product image
+                if not image_url and images:
+                    src = images[0].get("src")
+                    if src:
+                        image_url = "https:" + src if src.startswith("//") else src
+        else:
+            # No product id—use variant title only
+            title = var_title or "ATC"
     except Exception as e:
         print("Shopify JSON fallback failed:", e)
-        return None
 
-def build_title():
-    # Try cart (most accurate to what’s actually in the cart)
-    title = get_title_from_cart()
-    if title:
-        return title
-    # Fallback to Shopify JSON endpoints (if enabled)
-    title = get_title_from_shopify_json()
-    if title:
-        return title
-    # Last resort
-    return "ATC"
+    return title, image_url
 
-def send_discord_notification(title_text):
-    payload = {
-        "embeds": [
-            {
-                "title": title_text,  # e.g. `"blossom v2" raw Denim 34`
-                "url": ATC_URL,
-                "color": 0x00FF00
-            }
-        ]
+
+def build_title_and_image():
+    title, img = get_from_cart()
+    if title or img:
+        return (title or "ATC"), img
+    title2, img2 = get_from_shopify_json()
+    return (title2 or "ATC"), img2
+
+
+def send_discord_notification(title_text, image_url=None):
+    embed = {
+        "title": title_text,                 # e.g. `"blossom v2" raw Denim 34`
+        "url": ATC_URL,                      # clickable title → ATC
     }
+    # Add a thumbnail if we have one
+    if image_url:
+        embed["thumbnail"] = {"url": image_url}
+
+    payload = {"embeds": [embed]}
     session.post(WEBHOOK_URL, json=payload, timeout=20)
 
+
 if is_in_stock():
-    title = build_title()
-    print("Sending:", title)
-    send_discord_notification(title)
+    title, img = build_title_and_image()
+    print("Sending:", title, "| image:", img or "none")
+    send_discord_notification(title, img)
     print("Notification sent!")
 else:
     print("Still sold out.")
