@@ -6,57 +6,93 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 VARIANT_ID = 51377787011336  # size 32
 
 STORE_BASE = "https://derschutze.com"
+ATC_URL = f"{STORE_BASE}/cart/{VARIANT_ID}:1"
+
+session = requests.Session()
+session.headers.update({
+    "User-Agent": "Mozilla/5.0 (compatible; stock-checker/1.0)"
+})
 
 def is_in_stock():
-    url = f"{STORE_BASE}/cart/{VARIANT_ID}:1"
-    r = requests.get(url, allow_redirects=True)
+    r = session.get(ATC_URL, allow_redirects=True, timeout=20)
     if r.status_code == 200:
-        text = r.text.lower()
-        # Shopify returns "sold out" in the response if not available
-        if "sold out" in text:
+        if "sold out" in r.text.lower():
             print(f"Variant {VARIANT_ID} is sold out")
             return False
         print(f"Variant {VARIANT_ID} can be added to cart")
         return True
-    print(f"Failed to check cart endpoint. Status code: {r.status_code}")
+    print(f"ATC check failed: {r.status_code}")
     return False
 
-def get_friendly_title():
-    """
-    After the ATC GET, the item is in the cart.
-    cart.js returns items with product_title and variant_title (size).
-    """
+def get_title_from_cart():
     try:
-        r = requests.get(f"{STORE_BASE}/cart.js")
+        r = session.get(f"{STORE_BASE}/cart.js", timeout=20)
         r.raise_for_status()
         data = r.json()
         for item in data.get("items", []):
-            if str(item.get("variant_id")) == str(VARIANT_ID):
-                product = item.get("product_title", "").strip()
-                size = item.get("variant_title", "").strip()
-                friendly = f"{product} {size}".strip()
-                # example -> '"blossom v2" raw Denim 34'
-                return friendly
+            # In cart.js, the variant id is "id"
+            if str(item.get("id")) == str(VARIANT_ID):
+                product = (item.get("product_title") or "").strip()
+                size = (item.get("variant_title") or "").strip()
+                if product and size:
+                    return f"{product} {size}"
+                # Fallback to item["title"] which is often "Product — Size"
+                if item.get("title"):
+                    return item["title"].strip()
     except Exception as e:
-        print("Could not read cart.js:", e)
+        print("cart.js read failed:", e)
     return None
+
+def get_title_from_shopify_json():
+    """Fallback path if cart.js didn't have the item."""
+    try:
+        r_var = session.get(f"{STORE_BASE}/variants/{VARIANT_ID}.json", timeout=20)
+        if r_var.status_code != 200:
+            return None
+        variant = r_var.json().get("variant", {})
+        product_id = variant.get("product_id")
+        var_title = (variant.get("title") or "").strip()
+        if not product_id:
+            return var_title or None
+
+        r_prod = session.get(f"{STORE_BASE}/products/{product_id}.json", timeout=20)
+        if r_prod.status_code != 200:
+            return var_title or None
+        product_title = (r_prod.json().get("product", {}).get("title") or "").strip()
+        if product_title and var_title:
+            return f'{product_title} {var_title}'
+        return product_title or var_title or None
+    except Exception as e:
+        print("Shopify JSON fallback failed:", e)
+        return None
+
+def build_title():
+    # Try cart (most accurate to what’s actually in the cart)
+    title = get_title_from_cart()
+    if title:
+        return title
+    # Fallback to Shopify JSON endpoints (if enabled)
+    title = get_title_from_shopify_json()
+    if title:
+        return title
+    # Last resort
+    return "ATC"
 
 def send_discord_notification(title_text):
     payload = {
         "embeds": [
             {
-                "title": title_text or "ATC",
-                "url": f"{STORE_BASE}/cart/{VARIANT_ID}:1",
-                # optional nice touch: green accent
+                "title": title_text,  # e.g. `"blossom v2" raw Denim 34`
+                "url": ATC_URL,
                 "color": 0x00FF00
             }
         ]
     }
-    requests.post(WEBHOOK_URL, json=payload)
+    session.post(WEBHOOK_URL, json=payload, timeout=20)
 
 if is_in_stock():
-    title = get_friendly_title()  # e.g. '"blossom v2" raw Denim 34'
-    print("Sending:", title or "ATC")
+    title = build_title()
+    print("Sending:", title)
     send_discord_notification(title)
     print("Notification sent!")
 else:
