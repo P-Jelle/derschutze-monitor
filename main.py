@@ -3,36 +3,24 @@ import math
 import requests
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-
-# Monitor as many variants as you like:
+STORE_BASE = "https://derschutze.com"
 VARIANT_IDS = [
     51377786945800,  # size 28
-    51377787011336,  # size 32
-    51398381338888, # test
-    52255748161800 #test
-    # add more ids here...
+    50662297796872,  # size 28 Old
 ]
-
-STORE_BASE = "https://derschutze.com"
 USER_AGENT = "Mozilla/5.0 (compatible; stock-checker/1.0)"
-
-# Set to True if you want to AVOID adding to cart while checking.
-# When True, we only use /variants/{id}.json to infer availability (if available).
 USE_JSON_CHECK_ONLY = False
 
 session = requests.Session()
 session.headers.update({"User-Agent": USER_AGENT})
 
-
 def atc_url(variant_id: int) -> str:
     return f"{STORE_BASE}/cart/{variant_id}:1"
-
 
 def is_in_stock_via_atc(variant_id: int) -> bool:
     """ATC check (adds the item to cart)."""
     r = session.get(atc_url(variant_id), allow_redirects=True, timeout=20)
     return r.status_code == 200 and "sold out" not in r.text.lower()
-
 
 def is_in_stock_via_json(variant_id: int) -> bool:
     """
@@ -44,11 +32,9 @@ def is_in_stock_via_json(variant_id: int) -> bool:
         if rv.status_code != 200:
             return False
         variant = rv.json().get("variant", {}) or {}
-        # Best-effort; if 'available' is missing we fall back to False
         return bool(variant.get("available"))
     except Exception:
         return False
-
 
 def get_from_cart_for(variant_id: int):
     """
@@ -70,7 +56,6 @@ def get_from_cart_for(variant_id: int):
     except Exception as e:
         print("cart.js read failed:", e)
     return None, None, None
-
 
 def get_from_shopify_json_for(variant_id: int):
     """
@@ -111,30 +96,25 @@ def get_from_shopify_json_for(variant_id: int):
         print("Shopify JSON fallback failed:", e)
         return None, None, None
 
-
 def build_embed_for_variant(variant_id: int):
     """
     Returns an embed dict for this variant if in stock, else None.
     """
-    # 1) Check availability
     in_stock = is_in_stock_via_json(variant_id) if USE_JSON_CHECK_ONLY else is_in_stock_via_atc(variant_id)
     if not in_stock:
         print(f"{variant_id}: still sold out")
         return None
 
-    # 2) Pull nice title/size/image
     product_title, size_text, image_url = get_from_cart_for(variant_id)
     if not product_title:
         product_title, size_text, image_url = get_from_shopify_json_for(variant_id)
 
-    # Reasonable fallbacks
     title_for_embed = product_title or "ATC"
     desc = f"Size: {size_text}" if size_text else None
 
-    # 3) Build the embed
     embed = {
-        "title": title_for_embed,             # product name only
-        "url": atc_url(variant_id),           # clickable title -> ATC
+        "title": title_for_embed,
+        "url": atc_url(variant_id),
     }
     if desc:
         embed["description"] = desc
@@ -144,14 +124,12 @@ def build_embed_for_variant(variant_id: int):
     print(f"{variant_id}: sending embed -> {title_for_embed} | {desc or ''} | image: {image_url or 'none'}")
     return embed
 
-
 def send_embeds(embeds):
     """Send embeds in batches of 10 to respect Discord webhook limits."""
     for i in range(0, len(embeds), 10):
         batch = embeds[i:i+10]
         payload = {"embeds": batch}
         session.post(WEBHOOK_URL, json=payload, timeout=20)
-
 
 def main():
     embeds = []
