@@ -93,18 +93,32 @@ def get_from_shopify_json():
 
 def build_title_and_image():
     title, img = get_from_cart()
-    if title or img:
-        return (title or "ATC"), img
+    if title:
+        # Split out the size if title looks like "Product Size"
+        parts = title.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            return parts[0], parts[1], img
+        return title, None, img
+
     title2, img2 = get_from_shopify_json()
-    return (title2 or "ATC"), img2
+    if title2:
+        parts = title2.rsplit(" ", 1)
+        if len(parts) == 2 and parts[1].isdigit():
+            return parts[0], parts[1], img2
+        return title2, None, img2
+
+    return "ATC", None, img
 
 
-def send_discord_notification(title_text, image_url=None):
+def send_discord_notification(product_title, size_text=None, image_url=None):
     embed = {
-        "title": title_text,                 # e.g. `"blossom v2" raw Denim 34`
-        "url": ATC_URL,                      # clickable title → ATC
+        "title": product_title,   # just the product name
+        "url": ATC_URL,
     }
-    # Add a thumbnail if we have one
+    # put size on its own line
+    if size_text:
+        embed["description"] = f"Size: {size_text}"
+
     if image_url:
         embed["thumbnail"] = {"url": image_url}
 
@@ -112,10 +126,11 @@ def send_discord_notification(title_text, image_url=None):
     session.post(WEBHOOK_URL, json=payload, timeout=20)
 
 
+
 if is_in_stock():
-    title, img = build_title_and_image()
-    print("Sending:", title, "| image:", img or "none")
-    send_discord_notification(title, img)
+    product, size, img = build_title_and_image()
+    print("Sending:", product, size or "", "| image:", img or "none")
+    send_discord_notification(product, size, img)
     print("Notification sent!")
 else:
     print("Still sold out.")
