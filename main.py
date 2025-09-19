@@ -8,6 +8,8 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 VARIANT_IDS = [
     51377786945800,  # size 28
     51377787011336,  # size 32
+    51398381338888, # test
+    52255748161800 #test
     # add more ids here...
 ]
 
