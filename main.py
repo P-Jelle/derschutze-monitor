@@ -5,7 +5,7 @@ import requests
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 STORE_BASE = "https://derschutze.com"
 VARIANT_IDS = [
-    51377786945800,  # size 28
+    52611247636744,  # size 28
     50662297796872,  # size 28 Old
 ]
 USER_AGENT = "Mozilla/5.0 (compatible; stock-checker/1.0)"
