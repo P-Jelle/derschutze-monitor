@@ -3,10 +3,12 @@ import math
 import requests
 
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
-STORE_BASE = "https://derschutze.com"
+# STORE_BASE = "https://derschutze.com"
+STORE_BASE = "https://shop.travisscott.com"
 VARIANT_IDS = [
-    52611247636744,  # size 28
-    50662297796872,  # size 28 Old
+    # 52611247636744,
+    # 50662297796872,
+    44560884072575
 ]
 USER_AGENT = "Mozilla/5.0 (compatible; stock-checker/1.0)"
 USE_JSON_CHECK_ONLY = False
