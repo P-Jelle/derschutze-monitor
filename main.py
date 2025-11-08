@@ -8,7 +8,8 @@ STORE_BASE = "https://shop.travisscott.com"
 VARIANT_IDS = [
     # 52611247636744,
     # 50662297796872,
-    44560884072575
+    44560884072575,
+    44560883155071
 ]
 USER_AGENT = "Mozilla/5.0 (compatible; stock-checker/1.0)"
 USE_JSON_CHECK_ONLY = False
