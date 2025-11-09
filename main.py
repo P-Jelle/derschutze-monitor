@@ -11,7 +11,7 @@ STORE_BASE = "https://shop.travisscott.com"
 # Voorbeeld product — variant_ids kunnen leeg blijven als auto-fetch aan staat.
 PRODUCTS = [
     {
-        "handle": "air-jordan-1-low-og-sp-november-fragment-pl",
+        "handle": "cj-x-fragment-x-nike-houston-to-ise-mie-longsleeve",
         "variant_ids": [
             # 52611247636744,
             # 50662297796872,
