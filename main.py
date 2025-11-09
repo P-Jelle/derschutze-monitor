@@ -9,13 +9,23 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 STORE_BASE = "https://shop.travisscott.com"
 
 # Voorbeeld product — variant_ids kunnen leeg blijven als auto-fetch aan staat.
+# PRODUCTS = [
+    # {
+        # "handle": "cj-x-fragment-x-nike-houston-to-ise-mie-longsleeve",
+        # "variant_ids": [
+            # 52611247636744,
+            # 50662297796872,
+            # 44560884072575,
+        # ],
+    # },
+# ]
+
 PRODUCTS = [
     {
         "handle": "cj-x-fragment-x-nike-houston-to-ise-mie-longsleeve",
         "variant_ids": [
-            # 52611247636744,
-            # 50662297796872,
-            # 44560884072575,
+            44560882729087,  # Example variant ID
+            # Add other variant IDs here
         ],
     },
 ]
