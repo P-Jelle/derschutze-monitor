@@ -6,7 +6,6 @@ WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK")
 STORE_BASE = "https://eu.manieredevoir.com"
 VARIANT_IDS = [
     55292620734842,
-    55292620833146
 ]
 USER_AGENT = "Mozilla/5.0 (compatible; stock-checker/1.0)"
 USE_JSON_CHECK_ONLY = False
